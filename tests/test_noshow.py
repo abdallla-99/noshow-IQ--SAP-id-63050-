@@ -1,4 +1,3 @@
-import pytest
 import pandas as pd
 from noshow_iq.preprocess import load_and_clean, get_features_and_target
 
