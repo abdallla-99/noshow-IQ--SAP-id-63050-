@@ -1,0 +1,10 @@
+pandas
+scikit-learn
+imbalanced-learn
+flask
+fastapi
+uvicorn
+pymongo
+joblib
+pytest
+flake8

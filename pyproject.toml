@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "noshow_iq"
+version = "0.1.0"
+description = "A prediction API for patient no-shows"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "scikit-learn",
+    "imbalanced-learn",
+    "flask",
+    "pymongo",
+    "joblib",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
