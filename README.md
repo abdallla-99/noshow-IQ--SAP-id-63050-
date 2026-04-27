@@ -1,6 +1,5 @@
 ---
 title: NoShowIQ
-emoji: ??
 colorFrom: blue
 colorTo: green
 sdk: docker
