@@ -1,0 +1,28 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: flake8 noshow_iq/ tests/ --max-line-length=120
+      - run: pytest tests/ -v
+      - name: Build Docker image
+        run: docker build -t noshow-iq .
+      - name: Push to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker tag noshow-iq ${{ secrets.DOCKER_USERNAME }}/noshow-iq:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/noshow-iq:latest
+      - name: Trigger HF Space rebuild
+        run: |
+          curl -X POST https://huggingface.co/api/spaces/${{ secrets.HF_USERNAME }}/noshow-iq/restart \
+          -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}"
