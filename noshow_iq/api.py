@@ -7,10 +7,11 @@ from noshow_iq.model import predict
 app = Flask(__name__)
 
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-client = MongoClient(MONGO_URI)
-db = client["noshow_iq"]
-predictions_col = db["predictions"]
-training_runs_col = db["training_runs"]
+
+
+def get_db():
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    return client["noshow_iq"]
 
 
 @app.route("/health", methods=["GET"])
@@ -22,49 +23,61 @@ def health():
 def make_prediction():
     data = request.get_json()
     result = predict(data)
-    doc = {
-        "timestamp": datetime.utcnow(),
-        "input": data,
-        "risk_level": result["risk_level"],
-        "probability": result["probability"],
-        "recommendation": result["recommendation"],
-    }
-    predictions_col.insert_one(doc)
+    try:
+        db = get_db()
+        doc = {
+            "timestamp": datetime.utcnow(),
+            "input": data,
+            "risk_level": result["risk_level"],
+            "probability": result["probability"],
+            "recommendation": result["recommendation"],
+        }
+        db["predictions"].insert_one(doc)
+    except Exception as e:
+        print(f"MongoDB error: {e}")
     return jsonify(result)
 
 
 @app.route("/history", methods=["GET"])
 def history():
-    docs = list(predictions_col.find().sort("timestamp", -1).limit(20))
-    for d in docs:
-        d["_id"] = str(d["_id"])
-        d["timestamp"] = str(d["timestamp"])
-    return jsonify(docs)
+    try:
+        db = get_db()
+        docs = list(db["predictions"].find().sort("timestamp", -1).limit(20))
+        for d in docs:
+            d["_id"] = str(d["_id"])
+            d["timestamp"] = str(d["timestamp"])
+        return jsonify(docs)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/stats", methods=["GET"])
 def stats():
-    pipeline = [
-        {
-            "$group": {
-                "_id": None,
-                "total_predictions": {"$sum": 1},
-                "high_risk_count": {
-                    "$sum": {"$cond": [{"$eq": ["$risk_level", "high"]}, 1, 0]}
-                },
-                "low_risk_count": {
-                    "$sum": {"$cond": [{"$eq": ["$risk_level", "low"]}, 1, 0]}
-                },
-                "average_probability": {"$avg": "$probability"},
+    try:
+        db = get_db()
+        pipeline = [
+            {
+                "$group": {
+                    "_id": None,
+                    "total_predictions": {"$sum": 1},
+                    "high_risk_count": {
+                        "$sum": {"$cond": [{"$eq": ["$risk_level", "high"]}, 1, 0]}
+                    },
+                    "low_risk_count": {
+                        "$sum": {"$cond": [{"$eq": ["$risk_level", "low"]}, 1, 0]}
+                    },
+                    "average_probability": {"$avg": "$probability"},
+                }
             }
-        }
-    ]
-    result = list(predictions_col.aggregate(pipeline))
-    last_run = training_runs_col.find_one(sort=[("timestamp", -1)])
-    stats_data = result[0] if result else {}
-    stats_data.pop("_id", None)
-    stats_data["last_trained"] = str(last_run["timestamp"]) if last_run else None
-    return jsonify(stats_data)
+        ]
+        result = list(db["predictions"].aggregate(pipeline))
+        last_run = db["training_runs"].find_one(sort=[("timestamp", -1)])
+        stats_data = result[0] if result else {}
+        stats_data.pop("_id", None)
+        stats_data["last_trained"] = str(last_run["timestamp"]) if last_run else None
+        return jsonify(stats_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
