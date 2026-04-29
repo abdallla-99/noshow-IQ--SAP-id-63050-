@@ -55,7 +55,9 @@ def make_prediction():
     try:
         conn = get_db()
         conn.execute(
-            "INSERT INTO predictions (timestamp, input_json, risk_level, probability, recommendation) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO predictions "
+            "(timestamp, input_json, risk_level, probability, recommendation) "
+            "VALUES (?, ?, ?, ?, ?)",
             (
                 datetime.utcnow().isoformat(),
                 json.dumps(data),
@@ -76,7 +78,9 @@ def history():
     try:
         conn = get_db()
         rows = conn.execute(
-            "SELECT id, timestamp, input_json, risk_level, probability, recommendation FROM predictions ORDER BY timestamp DESC LIMIT 20"
+            "SELECT id, timestamp, input_json, risk_level, "
+            "probability, recommendation "
+            "FROM predictions ORDER BY timestamp DESC LIMIT 20"
         ).fetchall()
         conn.close()
         docs = []
@@ -98,17 +102,20 @@ def history():
 def stats():
     try:
         conn = get_db()
-        # SQL aggregation - equivalent to MongoDB's aggregation pipeline
+        # SQL aggregation - equivalent to MongoDB aggregation pipeline
         row = conn.execute("""
             SELECT
                 COUNT(*) AS total_predictions,
-                SUM(CASE WHEN risk_level = 'high' THEN 1 ELSE 0 END) AS high_risk_count,
-                SUM(CASE WHEN risk_level = 'low' THEN 1 ELSE 0 END) AS low_risk_count,
+                SUM(CASE WHEN risk_level = 'high' THEN 1 ELSE 0 END)
+                    AS high_risk_count,
+                SUM(CASE WHEN risk_level = 'low' THEN 1 ELSE 0 END)
+                    AS low_risk_count,
                 AVG(probability) AS average_probability
             FROM predictions
         """).fetchone()
         last_run = conn.execute(
-            "SELECT timestamp FROM training_runs ORDER BY timestamp DESC LIMIT 1"
+            "SELECT timestamp FROM training_runs "
+            "ORDER BY timestamp DESC LIMIT 1"
         ).fetchone()
         conn.close()
         stats_data = {
