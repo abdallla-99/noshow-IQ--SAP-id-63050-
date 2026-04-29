@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+﻿from flask import Flask, jsonify, request
 from datetime import datetime
 import sqlite3
 import json
@@ -7,12 +7,10 @@ from noshow_iq.model import predict
 
 app = Flask(__name__)
 
-# SQLite database file path - works on Hugging Face Spaces (writable /tmp)
 DB_PATH = os.environ.get("DB_PATH", "/tmp/noshow.db")
 
 
 def get_db():
-    """Get a SQLite connection. Auto-creates schema on first use."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("""
@@ -102,7 +100,6 @@ def history():
 def stats():
     try:
         conn = get_db()
-        # SQL aggregation - equivalent to MongoDB aggregation pipeline
         row = conn.execute("""
             SELECT
                 COUNT(*) AS total_predictions,
