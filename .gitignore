@@ -7,9 +7,6 @@ dist/
 build/
 .venv/
 venv/
-*.joblib
 *.pkl
-*.csv
-data/
 .vscode/
 .idea/
