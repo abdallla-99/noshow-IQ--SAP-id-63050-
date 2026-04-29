@@ -1,0 +1,84 @@
+from flask import Flask, jsonify, request
+from pymongo import MongoClient
+from datetime import datetime
+import os
+from noshow_iq.model import predict
+
+app = Flask(__name__)
+
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+
+
+def get_db():
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    return client["noshow_iq"]
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/predict", methods=["POST"])
+def make_prediction():
+    data = request.get_json()
+    result = predict(data)
+    try:
+        db = get_db()
+        doc = {
+            "timestamp": datetime.utcnow(),
+            "input": data,
+            "risk_level": result["risk_level"],
+            "probability": result["probability"],
+            "recommendation": result["recommendation"],
+        }
+        db["predictions"].insert_one(doc)
+    except Exception as e:
+        print(f"MongoDB error: {e}")
+    return jsonify(result)
+
+
+@app.route("/history", methods=["GET"])
+def history():
+    try:
+        db = get_db()
+        docs = list(db["predictions"].find().sort("timestamp", -1).limit(20))
+        for d in docs:
+            d["_id"] = str(d["_id"])
+            d["timestamp"] = str(d["timestamp"])
+        return jsonify(docs)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/stats", methods=["GET"])
+def stats():
+    try:
+        db = get_db()
+        pipeline = [
+            {
+                "$group": {
+                    "_id": None,
+                    "total_predictions": {"$sum": 1},
+                    "high_risk_count": {
+                        "$sum": {"$cond": [{"$eq": ["$risk_level", "high"]}, 1, 0]}
+                    },
+                    "low_risk_count": {
+                        "$sum": {"$cond": [{"$eq": ["$risk_level", "low"]}, 1, 0]}
+                    },
+                    "average_probability": {"$avg": "$probability"},
+                }
+            }
+        ]
+        result = list(db["predictions"].aggregate(pipeline))
+        last_run = db["training_runs"].find_one(sort=[("timestamp", -1)])
+        stats_data = result[0] if result else {}
+        stats_data.pop("_id", None)
+        stats_data["last_trained"] = str(last_run["timestamp"]) if last_run else None
+        return jsonify(stats_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=7860)
